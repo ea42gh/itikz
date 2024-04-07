@@ -1,0 +1,20 @@
+--- /usr/bin/latexmk	2021-11-25 17:30:41.000000000 -0500
++++ silent.latexmk	2024-04-07 07:17:53.906153258 -0400
+@@ -1902,7 +1902,7 @@
+ }
+ 
+ if ( $diagnostics || $rc_report ) {
+-    show_array( "Rc files read:", @rc_files_read );
++    show_array( "Rc files read:", @rc_files_read ) unless $silent;
+ }
+ 
+ if ( $bad_options > 0 ) {
+@@ -7627,7 +7627,7 @@
+         $return = &rdb_dummy_run0;
+     }
+     else {
+-        warn_running( "Run number $pass{$rule} of rule '$rule'" );
++        warn_running( "Run number $pass{$rule} of rule '$rule'" ) unless $silent;
+         if ($$Pcmd_type eq 'primary' ) { 
+             $return = &rdb_primary_run;
+         }
