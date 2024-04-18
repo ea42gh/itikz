@@ -931,7 +931,7 @@ def _q_gram_schmidt( v_list ):
     w = []
     for j in range( len( v_list )):
         w_j = v_list[j]
-        for k in range( j-1 ):
+        for k in range( j ):
             w_j = w_j - w[k].dot( v_list[j]) * w[k]
         w.append(1/w_j.norm() * w_j)
     return w
