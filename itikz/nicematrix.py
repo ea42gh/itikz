@@ -1040,21 +1040,23 @@ def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None, tmp_dir="tmp" )
 # BACKSUBSTITUTION
 # ==================================================================================================
 class BacksubstitutionCascade:
-    def __init__(self, ref_A, ref_rhs = None ):
-        self.ref_syseq( ref_A, ref_rhs=ref_rhs)
+    def __init__(self, ref_A, ref_rhs = None, var_name='x' ):
+        self.ref_syseq( ref_A, ref_rhs=ref_rhs, var_name=var_name)
 
     @classmethod
-    def from_ref_Ab(cls, ref_Ab):
+    def from_ref_Ab(cls, ref_Ab, var_name='x'):
         """create `cls` from augmented row echelon form matrix Ab (b is a column vector)"""
+
         if isinstance( ref_Ab, list ):
             ref_A   = [row[0:-1]  for row in ref_Ab]
             ref_rhs = [row[-1]    for row in ref_Ab]
         else:
             ref_A   = ref_Ab[:,0:-1]
             ref_rhs = ref_Ab[:,-1]
-        return cls( ref_A, ref_rhs )
+        return cls( ref_A, ref_rhs, var_name )
 
-    def ref_syseq(self, ref_A, ref_rhs = None ):
+    def ref_syseq(self, ref_A, ref_rhs = None, var_name='x' ):
+        self.var_name = var_name
         self.ref_A   = convert_to_sympy_matrix( ref_A )
         self.ref_rhs = convert_to_sympy_matrix( ref_rhs )
 
@@ -1081,7 +1083,7 @@ class BacksubstitutionCascade:
 
     def ref_Ab( self, Ab ):
         Ab = sym.Matrix( Ab )
-        self.ref_syseq( Ab[:,0:-1], Ab[:,-1] )
+        self.ref_syseq( Ab[:,0:-1], Ab[:,-1], var_name=self.var_name )
 
     @staticmethod
     def _bs_equation( ref_A, pivot_row, pivot_col, rhs=None, name="x" ):
@@ -1101,20 +1103,20 @@ class BacksubstitutionCascade:
     def _gen_back_subst_eqs( self ):
         """generate the equations for the back substitution algorithm"""
 
-        alpha = r'\alpha'
-        x     = 'x'
-        bs    = []
+        alpha    = r'\alpha'
+        var_name = self.var_name
+        bs       = []
         if len(self.free_cols) > 0:
-            bs.append( ',\\;'.join([f"x_{i+1} = {alpha}_{i+1}" for i in self.free_cols] ))
+            bs.append( ',\\;'.join([f"{self.var_name}_{i+1} = {alpha}_{i+1}" for i in self.free_cols] ))
             start = self.rank-1
         else:
-            bs.append( f"x_{self.rank} = {BacksubstitutionCascade._bs_equation(self.ref_A,self.rank-1,self.pivot_cols[-1], self.ref_rhs, name=alpha )}")
+            bs.append( f"{self.var_name}_{self.rank} = {BacksubstitutionCascade._bs_equation(self.ref_A,self.rank-1,self.pivot_cols[-1], self.ref_rhs, name=alpha )}")
             start = self.rank-2
 
         for i in range(start,-1, -1):
             bs.append( [
-                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.ref_A, i,self.pivot_cols[i], self.ref_rhs, name=x )}",
-                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.rref_A,i,self.pivot_cols[i], self.rref_rhs, name=alpha )}"
+                f"{self.var_name}_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.ref_A, i,self.pivot_cols[i], self.ref_rhs, name=var_name )}",
+                f"{self.var_name}_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.rref_A,i,self.pivot_cols[i], self.rref_rhs, name=alpha )}"
             ])
         return bs
 
@@ -1141,7 +1143,7 @@ class BacksubstitutionCascade:
         lft = r'\begin{pNiceArray}{r}'
         rgt = r'\end{pNiceArray}'
 
-        x = lft + r" \\ ".join( [f" x_{i+1}" for i in range(self.ref_A.shape[1]) ] ) + rgt
+        x = lft + r" \\ ".join( [f" {self.var_name}_{i+1}" for i in range(self.ref_A.shape[1]) ] ) + rgt
 
         if self.ref_rhs is None:
             p    = ""
@@ -1165,26 +1167,26 @@ class BacksubstitutionCascade:
         return "$ " + x + " = " + p + plus + h_txt + " $"
 
     @staticmethod
-    def gen_system_eqs( A, b ):
+    def gen_system_eqs( A, b, var_name ):
         """generate the system equations"""
         var = set()
         def mk( j, v ):
-            var.add(f"x_{j}")
+            var.add(f"{var_name}_{j}")
             try:
                 if v > 0:
-                    if v ==  1: s = [" + ",                 f"x_{j}" ]
-                    else:       s = [" + ", sym.latex( v ), f"x_{j}" ]
+                    if v ==  1: s = [" + ",                 f"{var_name}_{j}" ]
+                    else:       s = [" + ", sym.latex( v ), f"{var_name}_{j}" ]
                 elif v < 0:
-                    if v == -1: s = [" - ",                 f"x_{j}" ]
-                    else:       s = [" - ", sym.latex(-v ), f"x_{j}" ]
+                    if v == -1: s = [" - ",                 f"{var_name}_{j}" ]
+                    else:       s = [" - ", sym.latex(-v ), f"{var_name}_{j}" ]
                 else:
                     s = [""]
             except:
                 vs = sym.latex(v)
                 if vs.find("+") < 0 or vs.find("-") < 0:
-                    s = [ " + ", "( ", vs.replace("+",r"\+").replace("-",r"\-"), " ) ", f"x_{j}" ]
+                    s = [ " + ", "( ", vs.replace("+",r"\+").replace("-",r"\-"), " ) ", f"{var_name}_{j}" ]
                 else:
-                    s = [ " + ", sym.latex(v), f"x_{j}" ]
+                    s = [ " + ", sym.latex(v), f"{var_name}_{j}" ]
 
             return s
 
@@ -1225,9 +1227,9 @@ class BacksubstitutionCascade:
     def nm_latex_doc( self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None ):
         if show_system:
            if A is None or b is None:
-               system_txt = BacksubstitutionCascade.gen_system_eqs( self.ref_A, self.ref_rhs )
+               system_txt = BacksubstitutionCascade.gen_system_eqs( self.ref_A, self.ref_rhs, self.var_name )
            else:
-               system_txt = BacksubstitutionCascade.gen_system_eqs( A, b )
+               system_txt = BacksubstitutionCascade.gen_system_eqs( A, b, self.var_name )
         else:
            system_txt = None
 
