@@ -13,6 +13,8 @@ itikz
         :target: https://coveralls.io/github/jbn/itikz
 Latex with Tikz to SVG conversion. Includes Cell magic for rendering in Jupyter
 
+**This Fork of the original project has enhancements for the display of Linear Algebra Computations**
+
 * Free software: MIT license
 
 Basic Usage
@@ -21,7 +23,8 @@ The installation information below will install the version provided by the orig
 To use the upgraded version here, download it, and copy the itikz subdirectory into
 a directory in your PYTHONPATH.
 
-**Step by step instructions for Windows** are shown in the ![**InstallationInstructions.png**](InstallationInstructions.png) file.
+* **Step by step instructions for Windows** are shown in
+  .. image:: InstallationInstructions.png
 
 Prerequisites:
 
