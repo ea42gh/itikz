@@ -21,7 +21,7 @@ The installation information below will install the version provided by the orig
 To use the upgraded version here, download it, and copy the itikz subdirectory into
 a directory in your PYTHONPATH.
 
-**Step by step instructions for Windows** are shown in the [**InstallationInstructions.png**](InstallationInstructions.png) file.
+**Step by step instructions for Windows** are shown in the ![**InstallationInstructions.png**](InstallationInstructions.png) file.
 
 Prerequisites:
 
