@@ -1128,6 +1128,9 @@ class BacksubstitutionCascade:
         return p
 
     def homogeneous_solution(self):
+        if len(self.free_cols) == 0:
+            return sym.Matrix.zeros( self.rref_A.shape[1], 1)
+
         hs = sym.Matrix.zeros( self.rref_A.shape[1], len(self.free_cols))
 
         for (i,col) in enumerate(self.free_cols):
