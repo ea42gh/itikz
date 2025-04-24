@@ -1419,6 +1419,7 @@ class EigenProblemTable:
         for i in range( m.shape[0]):
             mat.append( ' & '.join( m[i,: ]))
         mat = pre + nl.join( mat ) + r' \\ ' + post
+
         return mat
 
     def mk_diag_matrix( self, key, formater=str, mm=8, extra_space='', add_height=0 ):
@@ -1430,13 +1431,15 @@ class EigenProblemTable:
 
     def mk_evecs_matrix( self, key, formater=str, mm=8,extra_space='', add_height=0  ):
         pre, m, post = self._mk_evecs_matrix(key=key, formater=formater, mm=mm )
+
         sz = self.sz[0] if key == 'uvecs' else self.sz[1]
+
         if m.shape[1] == sz:
             for i in range(m.shape[0]):
                 m[i,0] = extra_space+m[i,0]
                 m[i,m.shape[1]-1]=m[i,m.shape[1]-1]+extra_space
-
-            return self._fmt_matrix( pre, m, post, add_height )
+            res = self._fmt_matrix( pre, m, post, add_height )
+            return res
         else:
             return m
 

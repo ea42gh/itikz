@@ -207,6 +207,52 @@ def convert_to_sympy_matrix(A):
         A   = sym.Matrix(A)
     return A
 # ================================================================================================================================
+def to_str(x, digits=3):
+    """
+    Convert the input into a string representation.
+    
+    Parameters:
+    - `x`: The input value. Can be an integer, float, complex number, or a SymPy expression.
+    
+    Returns:
+    - A string representation of `x`.
+    """
+    
+    # Check for integers
+    if isinstance(x, int):
+        return str(x)
+    
+    # Check for floats
+    elif isinstance(x, float):
+        return str(round(x, digits))
+    
+    # Check for complex numbers
+    elif isinstance(x, complex):
+        real_part = round(x.real, digits)
+        imag_part = round(x.imag, digits)
+        
+        # Handle purely real or purely imaginary numbers
+        if imag_part == 0:
+            return str(real_part)
+        elif real_part == 0:
+            return f"{imag_part}i"
+        elif imag_part > 0:
+            return f"{real_part} + {imag_part}i"
+        else:
+            return f"{real_part} - {abs(imag_part)}i"
+    
+    # Check for SymPy expressions
+    elif isinstance(x, sym.Expr):
+        return str(x.evalf(digits))
+    
+    # For any other type that is a number
+    elif isinstance(x, (bool,)):
+        return str(int(x))  # Since bool is a subclass of int in Python
+    
+    else:
+        return str(x)
+
+# ================================================================================================================================
 # Index Computations and formating associated with Matrices laid out on a grid.
 # ================================================================================================================================
 class MatrixGridLayout:
