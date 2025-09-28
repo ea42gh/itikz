@@ -207,6 +207,52 @@ def convert_to_sympy_matrix(A):
         A   = sym.Matrix(A)
     return A
 # ================================================================================================================================
+def to_str(x, digits=3):
+    """
+    Convert the input into a string representation.
+    
+    Parameters:
+    - `x`: The input value. Can be an integer, float, complex number, or a SymPy expression.
+    
+    Returns:
+    - A string representation of `x`.
+    """
+    
+    # Check for integers
+    if isinstance(x, int):
+        return str(x)
+    
+    # Check for floats
+    elif isinstance(x, float):
+        return str(round(x, digits))
+    
+    # Check for complex numbers
+    elif isinstance(x, complex):
+        real_part = round(x.real, digits)
+        imag_part = round(x.imag, digits)
+        
+        # Handle purely real or purely imaginary numbers
+        if imag_part == 0:
+            return str(real_part)
+        elif real_part == 0:
+            return f"{imag_part}i"
+        elif imag_part > 0:
+            return f"{real_part} + {imag_part}i"
+        else:
+            return f"{real_part} - {abs(imag_part)}i"
+    
+    # Check for SymPy expressions
+    elif isinstance(x, sym.Expr):
+        return str(x.evalf(digits))
+    
+    # For any other type that is a number
+    elif isinstance(x, (bool,)):
+        return str(int(x))  # Since bool is a subclass of int in Python
+    
+    else:
+        return str(x)
+
+# ================================================================================================================================
 # Index Computations and formating associated with Matrices laid out on a grid.
 # ================================================================================================================================
 class MatrixGridLayout:
@@ -1078,7 +1124,7 @@ class BacksubstitutionCascade:
         self.free_cols = [ i for i in range(self.ref_A.shape[1]) if i not in self.pivot_cols]
         self.rank      = len(    self.pivot_cols)
 
-    def ref_rhs( self, rhs ):
+    def set_ref_rhs( self, rhs ):
         self.ref_rhs = None if rhs is None else sym.Matrix( rhs )
 
     def ref_Ab( self, Ab ):
@@ -1169,6 +1215,26 @@ class BacksubstitutionCascade:
 
         return "$ " + x + " = " + p + plus + h_txt + " $"
 
+    def _forward_adapter(self):
+        """
+        Build an equivalent back-sub problem via the reversal permutation.
+        Ly=b  -->  (R A R^T) y = R b, which is upper-triangular if A was lower-triangular.
+        Returns a *temporary* BacksubstitutionCascade you can render with existing methods.
+        """
+
+        n = self.ref_A.shape[1]
+        R = self._reversal_matrix(n)
+        U  = R * self.ref_A * R.T
+        bp = None if self.ref_rhs is None else R * self.ref_rhs
+        return BacksubstitutionCascade(U, bp, var_name=self.var_name)
+
+    @staticmethod
+    def _reversal_matrix(n):
+        R = sym.zeros(n)
+        for i in range(n):
+            R[i, n-1-i] = 1
+        return R
+
     @staticmethod
     def gen_system_eqs( A, b, var_name ):
         """generate the system equations"""
@@ -1256,8 +1322,35 @@ class BacksubstitutionCascade:
                  fig_scale      = fig_scale
                )
 
-    def show(self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None, keep_file=None, tmp_dir="tmp" ):
-        code = self.nm_latex_doc( A=A, b=b, show_system=show_system, show_cascade=show_cascade, show_solution=show_solution, fig_scale=fig_scale)
+    def nm_latex_doc_forward(self, A=None, b=None, show_system=False, show_cascade=True,
+                             show_solution=False, fig_scale=None):
+        """
+        Forward-substitution view. Keeps the full feature set of nm_latex_doc,
+        but runs it on the reversed system.
+        """
+        tmp  = self._forward_adapter()
+        code = tmp.nm_latex_doc(A=A, b=b, show_system=show_system, show_cascade=show_cascade,
+                                show_solution=show_solution, fig_scale=fig_scale)
+
+        n = self.ref_A.shape[1]
+        # do longest index first to avoid overlap during replacement
+        for k in range(n, 0, -1):
+            code = code.replace(f"{self.var_name}_{{{k}}}", f"{self.var_name}_{{{n+1-k}}}")
+            code = code.replace(rf"\alpha_{{{k}}}", rf"\alpha_{{{n+1-k}}}")
+
+        return code
+
+    def show(self, A=None, b=None, show_system=False, show_cascade=True,
+             show_solution=False, fig_scale=None, keep_file=None, tmp_dir="tmp",
+             forward=False):
+        if forward:
+            code = self.nm_latex_doc_forward(A=A, b=b, show_system=show_system,
+                                       show_cascade=show_cascade, show_solution=show_solution,
+                                       fig_scale=fig_scale)
+        else:
+            code = self.nm_latex_doc(A=A, b=b, show_system=show_system,
+                               show_cascade=show_cascade, show_solution=show_solution,
+                               fig_scale=fig_scale)
 
         h = itikz.fetch_or_compile_svg(
                 code, prefix='backsubst_', working_dir=tmp_dir, debug=False,
@@ -1419,7 +1512,6 @@ class EigenProblemTable:
         for i in range( m.shape[0]):
             mat.append( ' & '.join( m[i,: ]))
         mat = pre + nl.join( mat ) + r' \\ ' + post
-
         return mat
 
     def mk_diag_matrix( self, key, formater=str, mm=8, extra_space='', add_height=0 ):
@@ -1431,15 +1523,13 @@ class EigenProblemTable:
 
     def mk_evecs_matrix( self, key, formater=str, mm=8,extra_space='', add_height=0  ):
         pre, m, post = self._mk_evecs_matrix(key=key, formater=formater, mm=mm )
-
         sz = self.sz[0] if key == 'uvecs' else self.sz[1]
-
         if m.shape[1] == sz:
             for i in range(m.shape[0]):
                 m[i,0] = extra_space+m[i,0]
                 m[i,m.shape[1]-1]=m[i,m.shape[1]-1]+extra_space
-            res = self._fmt_matrix( pre, m, post, add_height )
-            return res
+
+            return self._fmt_matrix( pre, m, post, add_height )
         else:
             return m
 

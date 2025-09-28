@@ -1124,7 +1124,7 @@ class BacksubstitutionCascade:
         self.free_cols = [ i for i in range(self.ref_A.shape[1]) if i not in self.pivot_cols]
         self.rank      = len(    self.pivot_cols)
 
-    def ref_rhs( self, rhs ):
+    def set_ref_rhs( self, rhs ):
         self.ref_rhs = None if rhs is None else sym.Matrix( rhs )
 
     def ref_Ab( self, Ab ):
@@ -1215,6 +1215,26 @@ class BacksubstitutionCascade:
 
         return "$ " + x + " = " + p + plus + h_txt + " $"
 
+    def _forward_adapter(self):
+        """
+        Build an equivalent back-sub problem via the reversal permutation.
+        Ly=b  -->  (R A R^T) y = R b, which is upper-triangular if A was lower-triangular.
+        Returns a *temporary* BacksubstitutionCascade you can render with existing methods.
+        """
+
+        n = self.ref_A.shape[1]
+        R = self._reversal_matrix(n)
+        U  = R * self.ref_A * R.T
+        bp = None if self.ref_rhs is None else R * self.ref_rhs
+        return BacksubstitutionCascade(U, bp, var_name=self.var_name)
+
+    @staticmethod
+    def _reversal_matrix(n):
+        R = sym.zeros(n)
+        for i in range(n):
+            R[i, n-1-i] = 1
+        return R
+
     @staticmethod
     def gen_system_eqs( A, b, var_name ):
         """generate the system equations"""
@@ -1302,8 +1322,35 @@ class BacksubstitutionCascade:
                  fig_scale      = fig_scale
                )
 
-    def show(self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None, keep_file=None, tmp_dir="tmp" ):
-        code = self.nm_latex_doc( A=A, b=b, show_system=show_system, show_cascade=show_cascade, show_solution=show_solution, fig_scale=fig_scale)
+    def nm_latex_doc_forward(self, A=None, b=None, show_system=False, show_cascade=True,
+                             show_solution=False, fig_scale=None):
+        """
+        Forward-substitution view. Keeps the full feature set of nm_latex_doc,
+        but runs it on the reversed system.
+        """
+        tmp  = self._forward_adapter()
+        code = tmp.nm_latex_doc(A=A, b=b, show_system=show_system, show_cascade=show_cascade,
+                                show_solution=show_solution, fig_scale=fig_scale)
+
+        n = self.ref_A.shape[1]
+        # do longest index first to avoid overlap during replacement
+        for k in range(n, 0, -1):
+            code = code.replace(f"{self.var_name}_{{{k}}}", f"{self.var_name}_{{{n+1-k}}}")
+            code = code.replace(rf"\alpha_{{{k}}}", rf"\alpha_{{{n+1-k}}}")
+
+        return code
+
+    def show(self, A=None, b=None, show_system=False, show_cascade=True,
+             show_solution=False, fig_scale=None, keep_file=None, tmp_dir="tmp",
+             forward=False):
+        if forward:
+            code = self.nm_latex_doc_forward(A=A, b=b, show_system=show_system,
+                                       show_cascade=show_cascade, show_solution=show_solution,
+                                       fig_scale=fig_scale)
+        else:
+            code = self.nm_latex_doc(A=A, b=b, show_system=show_system,
+                               show_cascade=show_cascade, show_solution=show_solution,
+                               fig_scale=fig_scale)
 
         h = itikz.fetch_or_compile_svg(
                 code, prefix='backsubst_', working_dir=tmp_dir, debug=False,
