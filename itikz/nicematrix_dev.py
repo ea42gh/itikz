@@ -290,8 +290,9 @@ class MatrixGridLayout:
                     l.append( mat )
             self.matrices.append(l)
 
-        self.nGridRows        = cnt_layers # len(self.matrices)
-        self.nGridCols        = len(self.matrices[0])
+        self.nGridRows  = cnt_layers # len(self.matrices)
+        self.nGridCols  = max(len(row) for row in self.matrices)
+
 
         self._set_shapes()
         self.array_names      = []
@@ -325,11 +326,14 @@ class MatrixGridLayout:
         self.array_shape = np.empty((self.nGridRows, self.nGridCols), tuple)
 
         for i in range(self.nGridRows):
+            row = self.matrices[i]
+            row_len = len(row)
+
             for j in range(self.nGridCols):
-                try:
-                    self.array_shape[i,j] = (self.matrices[i][j]).shape
-                except:
-                    self.array_shape[i,j] = (0,0)
+                if j < row_len and row[j] is not None:
+                    self.array_shape[i, j] = row[j].shape
+                else:
+                    self.array_shape[i, j] = (0, 0)
 
         if self.nGridRows > 1:
             self.n_Col_0 = [s[1] for s in self.array_shape[1:,0]]
