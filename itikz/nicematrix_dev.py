@@ -346,7 +346,7 @@ class MatrixGridLayout:
         if self.nGridCols > 1:
             self.m_Row_0 = [s[0] for s in self.array_shape[0, 1:]]
         else:
-        self.m_Row_0 = []
+            self.m_Row_0 = []
 
     @staticmethod
     def _set_extra( extra, n ):
