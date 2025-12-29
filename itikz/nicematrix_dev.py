@@ -324,26 +324,29 @@ class MatrixGridLayout:
     def _set_shapes(self):
         '''compute the shapes of the arrays in the grid, obtain the maximal number of rows/cols'''
         self.array_shape = np.empty((self.nGridRows, self.nGridCols), tuple)
-
         for i in range(self.nGridRows):
             row = self.matrices[i]
             row_len = len(row)
-
             for j in range(self.nGridCols):
                 if j < row_len and row[j] is not None:
-                    self.array_shape[i, j] = row[j].shape
+                    # Check if it's actually a matrix/array with .shape attribute
+                    try:
+                        self.array_shape[i, j] = row[j].shape
+                    except (AttributeError, TypeError):
+                        # Not a matrix (could be wrapped symbol from PythonCall)
+                        self.array_shape[i, j] = (0, 0)
                 else:
                     self.array_shape[i, j] = (0, 0)
 
         if self.nGridRows > 1:
-            self.n_Col_0 = [s[1] for s in self.array_shape[1:,0]]
+            self.n_Col_0 = [s[1] for s in self.array_shape[1:, 0]]
         else:
-            self.n_Col_0 = [self.array_shape[0,1][1]]
+            self.n_Col_0 = []
 
         if self.nGridCols > 1:
-            self.m_Row_0 = [s[0] for s in self.array_shape[0,1:]]
+            self.m_Row_0 = [s[0] for s in self.array_shape[0, 1:]]
         else:
-            self.m_Row_0 = [s[1] for s in self.array_shape[0,1:]]
+        self.m_Row_0 = []
 
     @staticmethod
     def _set_extra( extra, n ):
