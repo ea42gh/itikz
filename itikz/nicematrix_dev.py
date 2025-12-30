@@ -6,6 +6,50 @@ from IPython.core.display import SVG
 from IPython.core.display import HTML
 
 # ================================================================================================================================
+from collections.abc import Sequence
+from collections.abc import Iterable
+
+# ================================================================================================================================
+# helper functions to convert PythonCall structures
+# ================================================================================================================================
+def _is_julia_obj(x):
+    mod = type(x).__module__
+    return mod.startswith("juliacall") or mod.startswith("PythonCall")
+
+def _jl_to_py(x):
+    """
+    Convert PythonCall Julia containers to pure Python containers,
+    preserving the nested structure, but ensuring that Julia MATRICES
+    become 2-D numpy arrays.
+    """
+    if x is None:
+        return None
+
+    # If it's a Julia object coming from PythonCall/Juliacall…
+    if _is_julia_obj(x):
+        sh = getattr(x, "shape", None)
+
+        # Julia matrix => force 2-D numpy array
+        if sh is not None and hasattr(sh, "__len__") and len(sh) == 2:
+            return np.array(x, dtype=object)
+
+        # Julia vector / nested container => recurse into Python list
+        try:
+            return [_jl_to_py(e) for e in x]
+        except TypeError:
+            # scalar Julia value
+            return x
+
+    # Pure Python containers => recurse
+    if isinstance(x, list):
+        return [_jl_to_py(e) for e in x]
+    if isinstance(x, tuple):
+        return tuple(_jl_to_py(e) for e in x)
+
+    # numpy arrays and scalars => leave as-is
+    return x
+
+# ================================================================================================================================
 extension = r''' '''
 # -----------------------------------------------------------------
 preamble = r''' '''
@@ -184,14 +228,17 @@ $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
 # ================================================================================================================================
 def convert_tuple_array_to_rationals(A):
     '''overcome the limitations of the PyCall interface: convert integer tuples to rationals'''
+    A = _jl_to_py(A)
     return sym.Matrix( [[sym.Rational(num, denom) for num, denom in row] for row in A] )
 
 def convert_tuple_list_to_rationals(A):
     '''overcome the limitations of the PyCall interface: convert integer tuples to rationals'''
+    A = _jl_to_py(A)
     return sym.Matrix( [sym.Rational(num, denom) for num, denom in A] )
 
 def convert_to_sympy_matrix(A):
     if A is None: return None
+    A = _jl_to_py(A)
     if isinstance( A, list):
         if isinstance( A[0], list):
             if isinstance(A[0][0], tuple ):      # list of list of tuples
@@ -768,6 +815,8 @@ def str_rep_from_mat( A, formater=str):
     '''str_rep_from_mat( A, formater=str)
     convert matrix A to a string using formater
     '''
+    A        = _jl_to_py(A)
+
     M,N=A.shape
     return np.array( [[formater(A[i,j]) for j in range(N)] for i in range(M)] )
 
@@ -775,6 +824,8 @@ def str_rep_from_mats( A, b, formater=str ):
     '''str_rep_from_mats( A, b, formater=str)
     convert matrix A and vector b to a string using formater, return the augmented matrix
     '''
+    A        = _jl_to_py(A)
+    b        = _jl_to_py(b)
     sA = str_rep_from_mat(A, formater)
     sb = np.array(b).reshape(-1,1)
     return np.hstack( [sA, sb] )
@@ -933,6 +984,14 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
 
+    # Normalize all incoming structured arguments
+    matrices        = _jl_to_py(matrices)
+    bg_for_entries  = _jl_to_py(bg_for_entries)
+    pivot_list      = _jl_to_py(pivot_list)
+    ref_path_list   = _jl_to_py(ref_path_list)
+    array_names     = _jl_to_py(array_names)
+    variable_colors = _jl_to_py(variable_colors)
+
     m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater,
                                  pivot_list=pivot_list, bg_for_entries=bg_for_entries,
                                  variable_colors=variable_colors,pivot_text_color=pivot_text_color,
@@ -993,6 +1052,8 @@ def compute_qr_matrices( A, W ):
     ''' given the matrix A and the corresponding matrix W with orthogonal columns,
     compute the list of list of sympy matrices in a QR layout
     '''
+    A = _jl_to_py(A)
+    W = _jl_to_py(W)
     A    = sym.Matrix(A)
     W    = sym.Matrix(W)
     WtW  = W.T @ W
@@ -1062,6 +1123,7 @@ def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp",
 # -----------------------------------------------------------------------------------------------
 def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", keep_file=None):
     m,tex_file,svg_file = _qr(matrices, formater=formater, array_names=array_names, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+    matrices = _jl_to_py(matrices)
 
     with open(svg_file, "r") as fp:
         svg = fp.read()
@@ -1071,6 +1133,9 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", 
     return None, m
 
 def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None, tmp_dir="tmp" ):
+    A = _jl_to_py(A)
+    W = _jl_to_py(W)
+
     A = sym.Matrix( A_ )
     W = sym.Matrix( W_ )
 
@@ -1638,6 +1703,7 @@ class EigenProblemTable:
                )
 # --------------------------------------------------------------------------------------------------
 def eig_tbl(A, normal=False, eig_digits=None,vec_digits=None):
+    A = _jl_to_py(A)
     A = sym.Matrix(A)
     eig = {
         'lambda': [],
@@ -1659,6 +1725,7 @@ def eig_tbl(A, normal=False, eig_digits=None,vec_digits=None):
     return EigenProblemTable( eig,eig_digits=eig_digits, vec_digits=vec_digits )
 
 def show_eig_tbl(A, Ascale=None, normal=False, eig_digits=None, vec_digits=None, formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None, tmp_dir="tmp" ):
+    A = _jl_to_py(A)
     E = eig_tbl(A, normal=normal, eig_digits=eig_digits,vec_digits=vec_digits)
     if Ascale is not None:
         E.eig[ 'lambda' ] = [ e/Ascale for e in E.eig[ 'lambda' ]]
@@ -1674,6 +1741,7 @@ def show_eig_tbl(A, Ascale=None, normal=False, eig_digits=None, vec_digits=None,
     return h
 # --------------------------------------------------------------------------------------------------
 def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None):
+    A = _jl_to_py(A)
     A   = sym.Matrix(A)
     eig = {
         'sigma':  [],
@@ -1715,6 +1783,7 @@ def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None)
 
 def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None,
                    formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None, tmp_dir="tmp" ):
+    A = _jl_to_py(A)
     E = svd_tbl(A, Ascale=Ascale, eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits)
     svd_code = E.nm_latex_doc( formater=formater, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
